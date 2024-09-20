@@ -25,6 +25,15 @@ install_dependencies() {
     echo "依赖项安装完成。"
 }
 
+# 功能：安装 screen
+install_screen() {
+    if ! command -v screen &> /dev/null; then
+        echo "screen 未安装，正在安装..."
+        sudo apt update && sudo apt install -y screen
+        echo "screen 安装完成。"
+    fi
+}
+
 # 功能：检查 Go 版本是否 >= 1.22.2
 check_go_version() {
     if command -v go >/dev/null 2>&1; then
@@ -90,17 +99,21 @@ setup_environment() {
     echo "环境变量已设置。"
 }
 
-# 功能3：启动 popmd（使用 nohup）
+# 功能3：启动 popmd（使用 screen）
 start_popmd() {
     cd "$HOME/heminetwork"
-    nohup ./popmd > popmd.log 2>&1 &
-    echo "popmd 已启动，日志保存在 popmd.log 中。"
+    screen -dmS popmd_session ./popmd
+    echo "popmd 已启动。你可以通过 'screen -r popmd_session' 查看运行中的进程。"
+    read -p "按回车返回主菜单..."
 }
 
-# 功能4：查看日志
+# 功能4：查看日志（使用 screen）
 view_logs() {
-    cd "$HOME/heminetwork"
-    tail -f popmd.log
+    screen -S popmd_session -X stuff 'tail -f popmd.log\n'
+    echo "你可以使用 Ctrl + A + D 来退出查看日志。"
+    screen -r popmd_session
+    echo "请记得使用 Ctrl + A + D 退出查看日志。"
+    read -p "按回车返回主菜单..."
 }
 
 # 功能5：备份地址信息
@@ -111,6 +124,19 @@ backup_address() {
     else
         echo "地址文件不存在。"
     fi
+    read -p "按回车返回主菜单..."
+}
+
+# 功能6：卸载 Heminetwork
+uninstall_heminetwork() {
+    TARGET_DIR="$HOME/heminetwork"
+    if [ -d "$TARGET_DIR" ]; then
+        rm -rf "$TARGET_DIR"
+        echo "Heminetwork 已卸载。"
+    else
+        echo "Heminetwork 未安装。"
+    fi
+    read -p "按回车返回主菜单..."
 }
 
 # 主菜单
@@ -121,19 +147,21 @@ main_menu() {
         echo "1. 安装并设置 Heminetwork"
         echo "2. 配置环境"
         echo "3. 启动 popmd"
-        echo "4. 查看日志"
+        echo "4. 查看日志（使用 Ctrl + A + D 退出）"
         echo "5. 备份地址信息"
-        echo "6. 退出"
+        echo "6. 卸载 Heminetwork"
+        echo "7. 退出"
         echo "==============================="
         echo "脚本作者: K2 节点教程分享"
         echo "关注推特: https://x.com/BtcK241918"
         echo "==============================="
         echo "请选择操作:"
 
-        read -p "请输入选项 (1-6): " choice
+        read -p "请输入选项 (1-7): " choice
 
         case $choice in
             1)
+                install_screen
                 download_and_setup
                 ;;
             2)
@@ -149,6 +177,9 @@ main_menu() {
                 backup_address
                 ;;
             6)
+                uninstall_heminetwork
+                ;;
+            7)
                 echo "退出脚本。"
                 exit 0
                 ;;
