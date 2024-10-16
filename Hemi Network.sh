@@ -104,30 +104,11 @@ upgrade_version() {
     read -n 1 -s
 }
 
-# 功能：配置环境并显示钱包信息
+# 功能：配置环境
 setup_environment() {
     echo "配置环境..."
     sudo apt update && sudo apt install screen
     echo "环境配置完成。"
-
-    # 显示钱包信息
-    ADDRESS_FILE="$HOME/popm-address.json"
-    if [ -f "$ADDRESS_FILE" ]; then
-        echo "读取钱包信息："
-        ethereum_address=$(jq -r '.ethereum_address' "$ADDRESS_FILE")
-        network=$(jq -r '.network' "$ADDRESS_FILE")
-        private_key=$(jq -r '.private_key' "$ADDRESS_FILE")
-        public_key=$(jq -r '.public_key' "$ADDRESS_FILE")
-        pubkey_hash=$(jq -r '.pubkey_hash' "$ADDRESS_FILE")
-
-        echo "Ethereum 地址: $ethereum_address"
-        echo "网络: $network"
-        echo "私钥: $private_key"
-        echo "公钥: $public_key"
-        echo "公钥哈希: $pubkey_hash"
-    else
-        echo "未找到钱包信息文件：$ADDRESS_FILE"
-    fi
 }
 
 # 功能：启动 popmd
@@ -182,7 +163,7 @@ main_menu() {
         clear
         echo "===== Heminetwork 管理菜单 ====="
         echo "1. 安装并设置 Heminetwork"
-        echo "2. 配置环境并显示钱包信息"
+        echo "2. 配置环境"
         echo "3. 启动 popmd"
         echo "4. 查看日志（使用 Ctrl + A + D 退出）"
         echo "5. 备份地址信息"
