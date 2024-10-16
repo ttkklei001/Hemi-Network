@@ -1,142 +1,179 @@
 #!/bin/bash
 
-# 发生错误时退出脚本
-set -e
+# 功能：备份地址文件
+backup_address() {
+    ADDRESS_FILE="$HOME/popm-address.json"
+    BACKUP_FILE="$HOME/popm-address.json.bak"
 
-# 捕获错误并提示
-trap 'echo "发生错误，脚本已退出。";' ERR
-
-# 功能：自动安装缺少的依赖项 (git 和 make)
-install_dependencies() {
-    for cmd in git make; do
-        if ! command -v $cmd &> /dev/null; then
-            echo "$cmd 未安装，正在安装..."
-
-            if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-                sudo apt update && sudo apt install -y $cmd
-            elif [[ "$OSTYPE" == "darwin"* ]]; then
-                brew install $cmd
-            else
-                echo "不支持的操作系统，请手动安装 $cmd。"
-                exit 1
-            fi
-        fi
-    done
-    echo "依赖项安装完成。"
-}
-
-# 功能：安装 screen
-install_screen() {
-    if ! command -v screen &> /dev/null; then
-        echo "screen 未安装，正在安装..."
-        sudo apt update && sudo apt install -y screen
-        echo "screen 安装完成。"
-    fi
-}
-
-# 功能：检查 Go 版本是否 >= 1.22.2
-check_go_version() {
-    if command -v go >/dev/null 2>&1; then
-        CURRENT_GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
-        MINIMUM_GO_VERSION="1.22.2"
-
-        if [ "$(printf '%s\n' "$MINIMUM_GO_VERSION" "$CURRENT_GO_VERSION" | sort -V | head -n1)" = "$MINIMUM_GO_VERSION" ]; then
-            echo "Go 版本满足要求: $CURRENT_GO_VERSION"
-        else
-            echo "当前 Go 版本 ($CURRENT_GO_VERSION) 低于要求，安装最新的 Go。"
-            install_go
-        fi
+    echo "备份 address.json 文件..."
+    if [ -f "$ADDRESS_FILE" ]; then
+        cp "$ADDRESS_FILE" "$BACKUP_FILE"
+        echo "备份完成：$BACKUP_FILE"
     else
-        echo "未检测到 Go，正在安装 Go。"
-        install_go
+        echo "未找到 address.json 文件，无法备份。"
     fi
 }
 
-install_go() {
-    wget https://go.dev/dl/go1.22.2.linux-amd64.tar.gz
-    sudo tar -C /usr/local -xzf go1.22.2.linux-amd64.tar.gz
-    export PATH=$PATH:/usr/local/go/bin
-    echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
-    source ~/.bashrc
-    echo "Go 安装完成，版本: $(go version)"
-}
-
-# 功能1：下载、解压缩并生成地址信息
+# 功能：下载并设置 Heminetwork
 download_and_setup() {
-    wget https://github.com/hemilabs/heminetwork/releases/download/v0.4.3/heminetwork_v0.4.3_linux_amd64.tar.gz -O heminetwork_v0.4.3_linux_amd64.tar.gz
+    URL="https://github.com/hemilabs/heminetwork/releases/download/v0.4.5/heminetwork_v0.4.5_linux_amd64.tar.gz"
+    FILENAME="heminetwork_v0.4.5_linux_amd64.tar.gz"
+    DIRECTORY="/root/heminetwork_v0.4.4_linux_amd64"
 
-    TARGET_DIR="$HOME/heminetwork"
-    mkdir -p "$TARGET_DIR"
-
-    tar -xvf heminetwork_v0.4.3_linux_amd64.tar.gz -C "$TARGET_DIR"
-
-    mv "$TARGET_DIR/heminetwork_v0.4.3_linux_amd64/"* "$TARGET_DIR/"
-    rmdir "$TARGET_DIR/heminetwork_v0.4.3_linux_amd64"
-
-    cd "$TARGET_DIR"
-    ./keygen -secp256k1 -json -net="testnet" > ~/popm-address.json
-
-    echo "地址文件生成成功。"
-}
-
-# 功能2：设置环境变量
-setup_environment() {
-    if [[ ! -f ~/popm-address.json ]]; then
-        echo "地址文件不存在，请先生成地址文件。"
+    echo "正在下载新版本 $FILENAME..."
+    wget -q "$URL" -O "$FILENAME"
+    if [ $? -eq 0 ]; then
+        echo "下载完成。"
+    else
+        echo "下载失败。"
         exit 1
     fi
 
-    cd "$HOME/heminetwork"
-    cat ~/popm-address.json
+    echo "删除旧版本目录..."
+    rm -rf "$DIRECTORY"
 
-    POPM_BTC_PRIVKEY=$(jq -r '.private_key' ~/popm-address.json)
-    read -p "输入 sats/vB 值: " POPM_STATIC_FEE
+    echo "正在解压新版本..."
+    tar -xzf "$FILENAME" -C /root
+    if [ $? -eq 0 ]; then
+        echo "解压完成。"
+    else
+        echo "解压失败。"
+        exit 1
+    fi
 
-    export POPM_BTC_PRIVKEY=$POPM_BTC_PRIVKEY
-    export POPM_STATIC_FEE=$POPM_STATIC_FEE
-    export POPM_BFG_URL=wss://testnet.rpc.hemi.network/v1/ws/public
+    echo "删除压缩文件..."
+    rm -rf "$FILENAME"
 
-    echo "环境变量已设置。"
+    echo "版本安装完成！"
+    echo "按任意键返回主菜单..."
+    read -n 1 -s
 }
 
-# 功能3：启动 popmd（使用 screen）
+# 功能：升级 Heminetwork 到最新版本
+upgrade_version() {
+    URL="https://github.com/hemilabs/heminetwork/releases/download/v0.4.5/heminetwork_v0.4.5_linux_amd64.tar.gz"
+    FILENAME="heminetwork_v0.4.5_linux_amd64.tar.gz"
+    DIRECTORY="/root/heminetwork_v0.4.4_linux_amd64"
+    ADDRESS_FILE="$HOME/popm-address.json"
+    BACKUP_FILE="$HOME/popm-address.json.bak"
+
+    echo "备份 address.json 文件..."
+    if [ -f "$ADDRESS_FILE" ]; then
+        cp "$ADDRESS_FILE" "$BACKUP_FILE"
+        echo "备份完成：$BACKUP_FILE"
+    else
+        echo "未找到 address.json 文件，无法备份。"
+    fi
+
+    echo "正在下载新版本 $FILENAME..."
+    wget -q "$URL" -O "$FILENAME"
+
+    if [ $? -eq 0 ]; then
+        echo "下载完成。"
+    else
+        echo "下载失败。"
+        exit 1
+    fi
+
+    echo "删除旧版本目录..."
+    rm -rf "$DIRECTORY"
+
+    echo "正在解压新版本..."
+    tar -xzf "$FILENAME" -C /root
+
+    if [ $? -eq 0 ]; then
+        echo "解压完成。"
+    else
+        echo "解压失败。"
+        exit 1
+    fi
+
+    echo "删除压缩文件..."
+    rm -rf "$FILENAME"
+
+    # 恢复 address.json 文件
+    if [ -f "$BACKUP_FILE" ]; then
+        cp "$BACKUP_FILE" "$ADDRESS_FILE"
+        echo "恢复 address.json 文件：$ADDRESS_FILE"
+    else
+        echo "备份文件不存在，无法恢复。"
+    fi
+
+    echo "版本升级完成！"
+    echo "按任意键返回主菜单栏..."
+    read -n 1 -s
+}
+
+# 功能：配置环境并显示钱包信息
+setup_environment() {
+    echo "配置环境..."
+    sudo apt update && sudo apt install screen
+    echo "环境配置完成。"
+
+    # 显示钱包信息
+    ADDRESS_FILE="$HOME/popm-address.json"
+    if [ -f "$ADDRESS_FILE" ]; then
+        echo "读取钱包信息："
+        ethereum_address=$(jq -r '.ethereum_address' "$ADDRESS_FILE")
+        network=$(jq -r '.network' "$ADDRESS_FILE")
+        private_key=$(jq -r '.private_key' "$ADDRESS_FILE")
+        public_key=$(jq -r '.public_key' "$ADDRESS_FILE")
+        pubkey_hash=$(jq -r '.pubkey_hash' "$ADDRESS_FILE")
+
+        echo "Ethereum 地址: $ethereum_address"
+        echo "网络: $network"
+        echo "私钥: $private_key"
+        echo "公钥: $public_key"
+        echo "公钥哈希: $pubkey_hash"
+    else
+        echo "未找到钱包信息文件：$ADDRESS_FILE"
+    fi
+}
+
+# 功能：启动 popmd
 start_popmd() {
-    cd "$HOME/heminetwork"
-    screen -dmS popmd_session ./popmd
-    echo "popmd 已启动。你可以通过 'screen -r popmd_session' 查看运行中的进程。"
-    read -p "按回车返回主菜单..."
+    echo "启动 popmd..."
+    screen -dmS popmd ./popmd
+    echo "popmd 已在 screen 中启动。"
 }
 
-# 功能4：查看日志（使用 screen）
+# 功能：查看日志
 view_logs() {
-    screen -S popmd_session -X stuff 'tail -f popmd.log\n'
-    echo "你可以使用 Ctrl + A + D 来退出查看日志。"
-    screen -r popmd_session
-    echo "请记得使用 Ctrl + A + D 退出查看日志。"
-    read -p "按回车返回主菜单..."
+    echo "正在查看日志..."
+    screen -r popmd
 }
 
-# 功能5：备份地址信息
-backup_address() {
-    if [[ -f ~/popm-address.json ]]; then
-        echo "请保存以下地址文件信息："
-        cat ~/popm-address.json
-    else
-        echo "地址文件不存在。"
-    fi
-    read -p "按回车返回主菜单..."
-}
-
-# 功能6：卸载 Heminetwork
+# 功能：卸载 Heminetwork
 uninstall_heminetwork() {
-    TARGET_DIR="$HOME/heminetwork"
-    if [ -d "$TARGET_DIR" ]; then
-        rm -rf "$TARGET_DIR"
-        echo "Heminetwork 已卸载。"
-    else
-        echo "Heminetwork 未安装。"
-    fi
-    read -p "按回车返回主菜单..."
+    echo "正在卸载 Heminetwork..."
+    rm -rf /root/heminetwork*
+    echo "Heminetwork 已卸载。"
+}
+
+# 功能：修改地址信息并保存到 JSON 文件
+modify_address_info() {
+    ADDRESS_FILE="$HOME/popm-address.json"
+
+    # 提示用户输入信息
+    read -p "请输入以太坊地址: " ethereum_address
+    read -p "请输入网络 (testnet/mainnet): " network
+    read -p "请输入私钥: " private_key
+    read -p "请输入公钥: " public_key
+    read -p "请输入公钥哈希: " pubkey_hash
+
+    # 创建新的 JSON 文件内容
+    cat > "$ADDRESS_FILE" << EOL
+{
+  "ethereum_address": "$ethereum_address",
+  "network": "$network",
+  "private_key": "$private_key",
+  "public_key": "$public_key",
+  "pubkey_hash": "$pubkey_hash"
+}
+EOL
+
+    echo "地址信息已保存到 $ADDRESS_FILE"
+    cat "$ADDRESS_FILE"  # 输出保存的文件内容
 }
 
 # 主菜单
@@ -145,23 +182,24 @@ main_menu() {
         clear
         echo "===== Heminetwork 管理菜单 ====="
         echo "1. 安装并设置 Heminetwork"
-        echo "2. 配置环境"
+        echo "2. 配置环境并显示钱包信息"
         echo "3. 启动 popmd"
         echo "4. 查看日志（使用 Ctrl + A + D 退出）"
         echo "5. 备份地址信息"
-        echo "6. 卸载 Heminetwork"
-        echo "7. 退出"
+        echo "6. 升级 Heminetwork"
+        echo "7. 修改地址信息"
+        echo "8. 卸载 Heminetwork"
+        echo "9. 退出"
         echo "==============================="
         echo "脚本作者: K2 节点教程分享"
         echo "关注推特: https://x.com/BtcK241918"
         echo "==============================="
         echo "请选择操作:"
 
-        read -p "请输入选项 (1-7): " choice
+        read -p "请输入选项 (1-9): " choice
 
         case $choice in
             1)
-                install_screen
                 download_and_setup
                 ;;
             2)
@@ -177,9 +215,15 @@ main_menu() {
                 backup_address
                 ;;
             6)
-                uninstall_heminetwork
+                upgrade_version
                 ;;
             7)
+                modify_address_info
+                ;;
+            8)
+                uninstall_heminetwork
+                ;;
+            9)
                 echo "退出脚本。"
                 exit 0
                 ;;
